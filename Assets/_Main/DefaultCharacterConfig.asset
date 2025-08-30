@@ -1,0 +1,145 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5fba6a12158fd43e8ac98a585f8bc3a8, type: 3}
+  m_Name: DefaultCharacterConfig
+  m_EditorClassIdentifier: 
+  walkSpeed: 4
+  sprintSpeed: 7
+  crouchSpeed: 1.5
+  adsSpeed: 2.5
+  airSpeed: 2
+  backwardSpeedMultiplier: 0.85
+  strafeSpeedMultiplier: 0.95
+  groundAcceleration: 20
+  groundDeceleration: 20
+  airAcceleration: 2
+  airDeceleration: 2
+  groundFriction: 6
+  airFriction: 3
+  accelerationCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0.12382061
+      outSlope: 0.12382061
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.13333333
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  stopSpeed: 10
+  jumpHeight: 2
+  jumpDuration: 0.4
+  fallGravityMultiplier: 1.5
+  jumpCutGravityMultiplier: 2
+  maxFallSpeed: -20
+  coyoteTime: 0.1
+  jumpBufferTime: 0.1
+  maxJumpCount: 1
+  variableJumpHeight: 1
+  minJumpHeightPercent: 0.4
+  standingHeight: 2
+  crouchHeight: 1
+  characterRadius: 0.3
+  crouchTransitionSpeed: 10
+  canCrouchInAir: 1
+  autoStandUp: 1
+  crouchJumpMultiplier: 0.8
+  slidingEnabled: 1
+  slideSpeedThreshold: 5
+  slideSpeedBoost: 1.7
+  maxSlideDuration: 1.5
+  slideDeceleration: 2
+  slideControlInfluence: 0.3
+  slideCooldown: 0.5
+  slideFrictionCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0.1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: -0.19720016
+      outSlope: -0.19720016
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.12916666
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  groundCheckDistance: 0.1
+  groundCheckRadius: 0.3
+  skinWidth: 0.02
+  groundLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  groundedTolerance: 0.05
+  useSphereCast: 1
+  maxSlopeAngle: 45
+  slopeUpSpeedMultiplier: 0.8
+  slopeDownSpeedMultiplier: 1.2
+  slideOnSteepSlope: 1
+  slopeSlideSpeed: 8
+  slopeForceDown: 5
+  slopeRayLength: 1
+  maxStepHeight: 0.3
+  autoStepUp: 1
+  stepUpSpeed: 10
+  stepCheckDistance: 0.4
+  smoothStepClimbing: 1
+  mass: 80
+  pushPower: 2
+  canPushInAir: 0
+  pushableLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  wallBounce: 0.1
+  minGroundNormalY: 0.7
+  wallRunEnabled: 0
+  ledgeGrabEnabled: 0
+  mantlingEnabled: 0
+  supportMovingPlatforms: 1
+  inheritPlatformVelocity: 1
+  platformVelocityInheritance: 0.5
+  useStamina: 0
+  maxStamina: 100
+  staminaDrainRate: 15
+  staminaRecoveryRate: 10
+  staminaRecoveryDelay: 1
+  canSprintBackwards: 0
+  sprintFOVIncrease: 10
+  showDebugGizmos: 1
+  groundCheckColor: {r: 0, g: 1, b: 0, a: 1}
+  slopeCheckColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  stepCheckColor: {r: 0, g: 1, b: 1, a: 1}
