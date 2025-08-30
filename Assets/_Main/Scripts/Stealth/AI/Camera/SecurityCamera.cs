@@ -14,16 +14,16 @@ namespace StealthSystem
         [SerializeField] private float visionRange = 15f;
         [SerializeField] private float visionAngle = 60f;
         [SerializeField] private LayerMask visionBlockingLayers = -1;
-        [SerializeField] private Transform cameraHead;
-        [SerializeField] private Transform searchOrigin;
+        [SerializeField] private Transform cameraHeadHolder;
         [SerializeField] private Camera viewCamera;
         
         [Header("Sweep Pattern")]
         [SerializeField] private CameraSweepType sweepType = CameraSweepType.LeftRight;
-        [SerializeField] private float sweepAngle = 90f;
+        [SerializeField] private float sweepAngle = 25f;
         [SerializeField] private float sweepSpeed = 30f; // degrees per second
         [SerializeField] private float sweepPauseTime = 1f;
         [SerializeField] private bool randomizePauseTime = false;
+        [SerializeField] private float cameraTilt = 0f; // X-axis rotation offset in degrees
         
         [Header("Detection Response")]
         [SerializeField] private float focusTime = 0.5f; // Time to "focus" on suspicious area
@@ -117,10 +117,10 @@ namespace StealthSystem
             
             audioSource = GetComponent<AudioSource>();
             
-            // Set up camera head if not assigned
-            if (cameraHead == null)
+            // Set up camera head holder if not assigned
+            if (cameraHeadHolder == null)
             {
-                cameraHead = transform;
+                cameraHeadHolder = transform;
             }
             
             // Set up view camera
@@ -137,6 +137,12 @@ namespace StealthSystem
             // Initialize rotation
             currentRotationY = transform.eulerAngles.y;
             CalculateSweepAngles();
+            
+            // Apply initial tilt to camera head holder
+            if (cameraHeadHolder != null)
+            {
+                ApplyCameraRotation(currentRotationY);
+            }
         }
         
         protected override void Start()
@@ -173,7 +179,7 @@ namespace StealthSystem
         #region DetectorComponent Implementation
         protected override float PerformDetectionCheck(IDetectable target, Vector3 targetPosition, float distance)
         {
-            if (isDisabled || cameraHead == null)
+            if (isDisabled || cameraHeadHolder == null)
                 return 0f;
             
             // Only detect during sweep and focus states
@@ -235,11 +241,11 @@ namespace StealthSystem
         #region Vision Detection
         private float CheckVisionDetection(IDetectable target, Vector3 targetPosition, float distance)
         {
-            Vector3 cameraPos = searchOrigin.position;
+            Vector3 cameraPos = cameraHeadHolder.position;
             Vector3 directionToTarget = (targetPosition - cameraPos).normalized;
             
             // Check if target is in camera's field of view
-            float angleToTarget = Vector3.Angle(searchOrigin.forward, directionToTarget);
+            float angleToTarget = Vector3.Angle(cameraHeadHolder.forward, directionToTarget);
             
             // Use current FOV for detection angle (normal or focused)
             float currentFOV = viewCamera != null ? viewCamera.fieldOfView : visionAngle;
@@ -325,6 +331,12 @@ namespace StealthSystem
                 focusRoutine = null;
             }
             
+            // Stop any looping audio when transitioning away from Alert state
+            if (oldState == CameraState.Alert)
+            {
+                StopLoopingAudio();
+            }
+            
             // Handle state transitions
             switch (newState)
             {
@@ -335,7 +347,7 @@ namespace StealthSystem
                 
                 case CameraState.Focusing:
                     StopSweepBehavior();
-                    PlayAudioClip(focusSound);
+                    PlayAudioClip(focusSound); // One-shot sound
                     break;
                 
                 case CameraState.Suspicious:
@@ -343,12 +355,13 @@ namespace StealthSystem
                     break;
                 
                 case CameraState.Alert:
-                    PlayAudioClip(alarmSound);
+                    PlayLoopingAudio(alarmSound); // Looping sound
                     StopSweepBehavior();
                     break;
                 
                 case CameraState.Disabled:
                     StopSweepBehavior();
+                    StopLoopingAudio(); // Stop alarm if camera gets disabled
                     break;
             }
             
@@ -369,8 +382,13 @@ namespace StealthSystem
             ChangeCameraState(CameraState.Focusing);
             
             // Turn camera toward suspicious position
-            Vector3 focusDirection = (suspiciousPosition - cameraHead.position).normalized;
+            Vector3 focusDirection = (suspiciousPosition - cameraHeadHolder.position).normalized;
             Quaternion targetRotation = Quaternion.LookRotation(focusDirection);
+            
+            // Apply tilt to target rotation
+            Vector3 targetEuler = targetRotation.eulerAngles;
+            targetEuler.x = cameraTilt; // Maintain tilt while focusing
+            targetRotation = Quaternion.Euler(targetEuler);
             
             // Zoom in camera
             if (viewCamera != null)
@@ -385,7 +403,7 @@ namespace StealthSystem
                     
                     // Smoothly zoom and rotate
                     viewCamera.fieldOfView = Mathf.Lerp(startFOV, focusZoomFOV, t);
-                    cameraHead.rotation = Quaternion.Slerp(cameraHead.rotation, targetRotation, t);
+                    cameraHeadHolder.rotation = Quaternion.Slerp(cameraHeadHolder.rotation, targetRotation, t);
                     
                     yield return null;
                 }
@@ -425,11 +443,16 @@ namespace StealthSystem
             ChangeCameraState(CameraState.Alert);
             
             // Keep camera focused on last known position
-            // if (suspiciousPosition != Vector3.zero)
-            // {
-            //     Vector3 alertDirection = (suspiciousPosition - cameraHead.position).normalized;
-            //     cameraHead.rotation = Quaternion.LookRotation(alertDirection);
-            // }
+            if (suspiciousPosition != Vector3.zero)
+            {
+                Vector3 alertDirection = (suspiciousPosition - cameraHeadHolder.position).normalized;
+                Quaternion alertRotation = Quaternion.LookRotation(alertDirection);
+                
+                // Apply tilt to alert rotation
+                Vector3 alertEuler = alertRotation.eulerAngles;
+                alertEuler.x = cameraTilt; // Maintain tilt while in alert state
+                cameraHeadHolder.rotation = Quaternion.Euler(alertEuler);
+            }
         }
         
         private void ReturnToSweep()
@@ -480,10 +503,10 @@ namespace StealthSystem
                 // Determine target angle
                 targetRotationY = sweepingRight ? sweepEndAngle : sweepStartAngle;
                 
-                // Rotate to target
-                while (Mathf.Abs(currentRotationY - targetRotationY) > 1f && cameraState == CameraState.Sweeping)
+                // Rotate to target using shortest angular path
+                while (Mathf.Abs(Mathf.DeltaAngle(currentRotationY, targetRotationY)) > 1f && cameraState == CameraState.Sweeping)
                 {
-                    currentRotationY = Mathf.MoveTowards(currentRotationY, targetRotationY, sweepSpeed * Time.deltaTime);
+                    currentRotationY = Mathf.MoveTowardsAngle(currentRotationY, targetRotationY, sweepSpeed * Time.deltaTime);
                     yield return null;
                 }
                 
@@ -513,18 +536,32 @@ namespace StealthSystem
             while (cameraState == CameraState.Sweeping)
             {
                 currentRotationY += sweepSpeed * Time.deltaTime;
-                if (currentRotationY >= 360f) currentRotationY -= 360f;
+                // Normalize angle to stay within 0-360 range
+                currentRotationY = currentRotationY % 360f;
+                if (currentRotationY < 0f) currentRotationY += 360f;
                 yield return null;
             }
         }
         
         private void UpdateSweepMovement()
         {
-            if (cameraHead != null && cameraState == CameraState.Sweeping)
+            if (cameraHeadHolder != null && cameraState == CameraState.Sweeping)
             {
-                Vector3 currentRotation = cameraHead.eulerAngles;
-                currentRotation.y = currentRotationY;
-                cameraHead.eulerAngles = currentRotation;
+                ApplyCameraRotation(currentRotationY);
+            }
+        }
+        
+        /// <summary>
+        /// Apply both tilt and yaw rotation to the camera head holder
+        /// </summary>
+        private void ApplyCameraRotation(float yawAngle)
+        {
+            if (cameraHeadHolder != null)
+            {
+                Vector3 rotation = cameraHeadHolder.eulerAngles;
+                rotation.x = cameraTilt; // Apply tilt (pitch) rotation
+                rotation.y = yawAngle; // Apply sweep (yaw) rotation
+                cameraHeadHolder.eulerAngles = rotation;
             }
         }
         
@@ -534,21 +571,24 @@ namespace StealthSystem
             sweepStartAngle = baseAngle - (sweepAngle * 0.5f);
             sweepEndAngle = baseAngle + (sweepAngle * 0.5f);
             
-            // Normalize angles
-            if (sweepStartAngle < 0f) sweepStartAngle += 360f;
-            if (sweepEndAngle >= 360f) sweepEndAngle -= 360f;
+            // Don't normalize here - keep the raw angles for proper interpolation
+            // This prevents issues when sweep crosses the 0°/360° boundary
         }
         
         private IEnumerator BriefFocusToward(Vector3 focusPosition)
         {
-            Vector3 originalForward = cameraHead.forward;
-            Vector3 focusDirection = (focusPosition - cameraHead.position).normalized;
+            float originalYaw = currentRotationY;
+            Vector3 focusDirection = (focusPosition - cameraHeadHolder.position).normalized;
+            
+            // Calculate target yaw angle while maintaining tilt
+            float targetYaw = Mathf.Atan2(focusDirection.x, focusDirection.z) * Mathf.Rad2Deg;
             
             // Briefly look toward the focus position
             float focusTimer = 1f;
             while (focusTimer > 0f && cameraState == CameraState.Sweeping)
             {
-                cameraHead.forward = Vector3.Slerp(cameraHead.forward, focusDirection, 2f * Time.deltaTime);
+                float currentYaw = Mathf.LerpAngle(currentRotationY, targetYaw, 2f * Time.deltaTime);
+                ApplyCameraRotation(currentYaw);
                 focusTimer -= Time.deltaTime;
                 yield return null;
             }
@@ -702,20 +742,21 @@ namespace StealthSystem
                 yield return new WaitForSeconds(0.5f / blinkSpeed);
             }
         }
+        #endregion
 
         #region Vision Cone Line Renderer
         private void SetupVisionProjector()
         {
             if (!showSearchRange) return;
             
-            // Create line renderers directly as children of the camera head
+            // Create line renderers directly as children of the camera head holder
             coneLines = new LineRenderer[coneResolution + 3];
             
             // Create cone outline
             for (int i = 0; i < coneResolution; i++)
             {
                 GameObject lineObj = new GameObject($"ConeLine_{i}");
-                lineObj.transform.parent = searchOrigin;
+                lineObj.transform.parent = cameraHeadHolder;
                 
                 LineRenderer lr = lineObj.AddComponent<LineRenderer>();
                 SetupLineRenderer(lr);
@@ -726,7 +767,7 @@ namespace StealthSystem
             for (int i = 0; i < 3; i++)
             {
                 GameObject centerLineObj = new GameObject($"CenterLine_{i}");
-                centerLineObj.transform.parent = searchOrigin;
+                centerLineObj.transform.parent = cameraHeadHolder;
                 
                 LineRenderer lr = centerLineObj.AddComponent<LineRenderer>();
                 SetupLineRenderer(lr);
@@ -778,13 +819,13 @@ namespace StealthSystem
                 
                 float angle = startAngle + (angleStep * i);
                 
-                // Calculate direction in searchOrigin's local space
+                // Calculate direction in cameraHeadHolder's local space
                 Vector3 localDirection = Quaternion.Euler(0, angle, 0) * Vector3.forward;
-                Vector3 worldDirection = searchOrigin.TransformDirection(localDirection);
+                Vector3 worldDirection = cameraHeadHolder.TransformDirection(localDirection);
                 
                 // Use world space positions
-                coneLines[i].SetPosition(0, searchOrigin.position);
-                coneLines[i].SetPosition(1, searchOrigin.position + worldDirection * visionRange);
+                coneLines[i].SetPosition(0, cameraHeadHolder.position);
+                coneLines[i].SetPosition(1, cameraHeadHolder.position + worldDirection * visionRange);
             }
             
             // Update center lines
@@ -806,10 +847,10 @@ namespace StealthSystem
                     coneLines[coneResolution + i].endColor = centerColor;
                     
                     Vector3 localDirection = Quaternion.Euler(0, centerAngles[i], 0) * Vector3.forward;
-                    Vector3 worldDirection = searchOrigin.TransformDirection(localDirection);
+                    Vector3 worldDirection = cameraHeadHolder.TransformDirection(localDirection);
                     
-                    coneLines[coneResolution + i].SetPosition(0, searchOrigin.position);
-                    coneLines[coneResolution + i].SetPosition(1, searchOrigin.position + worldDirection * visionRange);
+                    coneLines[coneResolution + i].SetPosition(0, cameraHeadHolder.position);
+                    coneLines[coneResolution + i].SetPosition(1, cameraHeadHolder.position + worldDirection * visionRange);
                 }
             }
         }
@@ -847,6 +888,9 @@ namespace StealthSystem
 
         private void OnDestroy()
         {
+            // Stop any looping audio
+            StopLoopingAudio();
+            
             if (coneLines != null)
             {
                 foreach (var line in coneLines)
@@ -859,14 +903,45 @@ namespace StealthSystem
             }
         }
         #endregion
-        #endregion
         
         #region Audio
+        private Coroutine alarmLoopRoutine;
+
         private void PlayAudioClip(AudioClip clip)
         {
             if (audioSource != null && clip != null)
             {
                 audioSource.PlayOneShot(clip);
+            }
+        }
+
+        private void PlayLoopingAudio(AudioClip clip)
+        {
+            if (audioSource != null && clip != null)
+            {
+                // Stop any existing looping audio
+                StopLoopingAudio();
+                
+                // Start looping the clip
+                audioSource.clip = clip;
+                audioSource.loop = true;
+                audioSource.Play();
+                
+                if (debugDetection)
+                    Debug.Log($"[SecurityCamera] Started looping audio: {clip.name}");
+            }
+        }
+
+        private void StopLoopingAudio()
+        {
+            if (audioSource != null && audioSource.isPlaying && audioSource.loop)
+            {
+                audioSource.Stop();
+                audioSource.loop = false;
+                audioSource.clip = null;
+                
+                if (debugDetection)
+                    Debug.Log("[SecurityCamera] Stopped looping audio");
             }
         }
         #endregion
@@ -885,10 +960,10 @@ namespace StealthSystem
         
         private void DrawVisionGizmos()
         {
-            if (cameraHead == null) return;
+            if (cameraHeadHolder == null) return;
             
-            Vector3 cameraPos = cameraHead.position;
-            Vector3 forward = cameraHead.forward;
+            Vector3 cameraPos = cameraHeadHolder.position;
+            Vector3 forward = cameraHeadHolder.forward;
             
             // Vision cone
             float currentFOV = viewCamera != null ? viewCamera.fieldOfView : visionAngle;
