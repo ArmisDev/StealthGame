@@ -94,7 +94,9 @@ namespace StealthSystem
             // Target factors
             strength *= target.VisibilityLevel;
             strength *= target.SizeModifier;
+            Debug.Log($"Detection strength: {Mathf.Clamp01(strength)}");
             
+            // Clamp could remove the size modifier factor add when sprinting
             return Mathf.Clamp01(strength);
         }
         
