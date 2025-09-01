@@ -35,7 +35,7 @@ namespace StealthSystem
                 runSpeed = 4f,
                 crouchSpeed = 1f,
                 rotationSpeed = 90f,
-                stoppingDistance = 0.5f,
+                stoppingDistance = 1.5f,
                 patrolPauseTime = 2f,
                 randomizePatrolPause = true,
                 maxRandomPauseVariation = 1f,
