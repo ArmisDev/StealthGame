@@ -428,7 +428,17 @@ namespace StealthSystem
             
             if (HasReachedDestination())
             {
-                StartCoroutine(PatrolPause());
+                // Only start patrol pause if we're not already pausing
+                if (behaviorCoroutine == null)
+                {
+                    if (debugGuardAI)
+                        Debug.Log($"[GuardAI] {name} reached destination, starting patrol pause");
+                    behaviorCoroutine = StartCoroutine(PatrolPause());
+                }
+                else if (debugGuardAI)
+                {
+                    Debug.Log($"[GuardAI] {name} at destination but coroutine already running");
+                }
             }
         }
         
@@ -537,7 +547,9 @@ namespace StealthSystem
             Vector3 direction = (targetPosition - transform.position);
             direction.y = 0f; // Keep movement horizontal
             
-            if (direction.magnitude > settings.stoppingDistance)
+            float distanceToTarget = direction.magnitude;
+            
+            if (distanceToTarget > settings.stoppingDistance)
             {
                 moveDirection = direction.normalized;
                 isMoving = true;
@@ -552,12 +564,27 @@ namespace StealthSystem
                 // Apply gravity
                 movement.y = -9.81f * Time.deltaTime;
                 
+                // Store position before move to check if we actually moved
+                Vector3 positionBefore = transform.position;
                 characterController.Move(movement);
+                Vector3 positionAfter = transform.position;
+                
+                // Debug if we're not moving despite trying to move
+                if (debugGuardAI && Vector3.Distance(positionBefore, positionAfter) < 0.01f && distanceToTarget > 1f)
+                {
+                    Debug.LogWarning($"[GuardAI] {name} movement blocked! Distance to target: {distanceToTarget:F2}, " +
+                                   $"Attempted movement: {movement}, Position change: {Vector3.Distance(positionBefore, positionAfter):F3}");
+                }
             }
             else
             {
                 isMoving = false;
                 moveDirection = Vector3.zero;
+                
+                if (debugGuardAI && distanceToTarget > 0.1f)
+                {
+                    Debug.Log($"[GuardAI] {name} stopped moving - within stopping distance: {distanceToTarget:F2} <= {settings.stoppingDistance}");
+                }
             }
         }
         
@@ -591,7 +618,10 @@ namespace StealthSystem
         
         private bool HasReachedDestination()
         {
-            return Vector3.Distance(transform.position, currentDestination) <= settings.stoppingDistance;
+            // Use horizontal distance only, same as movement system
+            Vector3 horizontalPosition = new Vector3(transform.position.x, 0f, transform.position.z);
+            Vector3 horizontalDestination = new Vector3(currentDestination.x, 0f, currentDestination.z);
+            return Vector3.Distance(horizontalPosition, horizontalDestination) <= settings.stoppingDistance;
         }
         #endregion
         
@@ -599,6 +629,9 @@ namespace StealthSystem
         private IEnumerator PatrolPause()
         {
             isPaused = true;
+            
+            if (debugGuardAI)
+                Debug.Log($"[GuardAI] {name} starting patrol pause at waypoint {currentWaypointIndex}");
             
             float pauseTime = settings.patrolPauseTime;
             if (settings.randomizePatrolPause)
@@ -608,13 +641,19 @@ namespace StealthSystem
             
             yield return new WaitForSeconds(pauseTime);
             
+            if (debugGuardAI)
+                Debug.Log($"[GuardAI] {name} finished patrol pause, moving to next waypoint");
+            
             MoveToNextWaypoint();
             isPaused = false;
+            behaviorCoroutine = null; // Clear the coroutine reference
         }
         
         private void MoveToNextWaypoint()
         {
             if (patrolWaypoints == null || patrolWaypoints.Length <= 1) return;
+            
+            int previousWaypoint = currentWaypointIndex;
             
             if (reversePatrolOnEnd)
             {
@@ -643,6 +682,10 @@ namespace StealthSystem
             }
             
             currentDestination = patrolWaypoints[currentWaypointIndex].position;
+            
+            if (debugGuardAI)
+                Debug.Log($"[GuardAI] {name} moved from waypoint {previousWaypoint} to {currentWaypointIndex}, " +
+                         $"destination: {currentDestination}, reversed: {patrolReversed}");
         }
         
         private Vector3 FindNearestWaypoint()
@@ -705,8 +748,16 @@ namespace StealthSystem
         
         private void DebugGuardState()
         {
+            float distance3D = Vector3.Distance(transform.position, currentDestination);
+            Vector3 horizontalPos = new Vector3(transform.position.x, 0f, transform.position.z);
+            Vector3 horizontalDest = new Vector3(currentDestination.x, 0f, currentDestination.z);
+            float distanceHorizontal = Vector3.Distance(horizontalPos, horizontalDest);
+            
             Debug.Log($"[GuardAI] {name} - State: {currentGuardState}, Movement: {currentMovementMode}, " +
-                     $"Moving: {isMoving}, Timer: {stateTimer:F1}, Detection: {lastDetectionStrength:F2}");
+                     $"Moving: {isMoving}, Timer: {stateTimer:F1}, Detection: {lastDetectionStrength:F2}, " +
+                     $"Waypoint: {currentWaypointIndex}/{patrolWaypoints?.Length ?? 0}, " +
+                     $"Paused: {isPaused}, Coroutine: {(behaviorCoroutine != null ? "Running" : "None")}, " +
+                     $"Dist3D: {distance3D:F2}, DistH: {distanceHorizontal:F2}, Reached: {HasReachedDestination()}");
         }
         #endregion
         
